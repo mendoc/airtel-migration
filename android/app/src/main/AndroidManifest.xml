@@ -12,7 +12,7 @@
     <application
         android:name="io.flutter.app.FlutterApplication"
         android:label="Airtel Migration"
-        android:icon="@drawable/logo_am">
+        android:icon="@drawable/airtel_migration_logo_360">
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTop"

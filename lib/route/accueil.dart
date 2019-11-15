@@ -1,7 +1,9 @@
+import 'package:change_contacts/ui/bouton.dart';
+import 'package:change_contacts/util/master.dart';
 import 'package:contacts_service/contacts_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:change_contacts/util/config.dart';
 
 class Accueil extends StatelessWidget {
   @override
@@ -9,9 +11,7 @@ class Accueil extends StatelessWidget {
     return MaterialApp(
       title: 'Airtel Migration',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-      ),
+      theme: ThemeData(accentColor: Colors.red),
       home: AccueilPage(title: 'Airtel Migration'),
     );
   }
@@ -37,7 +37,7 @@ void _showDialog(BuildContext context, {String message}) {
           new FlatButton(
             child: new Text(
               "Fermer",
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: mainColor),
             ),
             onPressed: () {
               Navigator.of(context).pop();
@@ -53,22 +53,23 @@ class _AccueilPageState extends State<AccueilPage> {
   bool ready = true;
   bool finished = false;
   String progress = "0%";
+  String status = "Migration en cours ...";
 
-  refreshContacts() async {
-    PermissionStatus permissionStatus = await _getContactPermission();
+  refreshContacts(bool t) async {
+    PermissionStatus permissionStatus = await getContactPermission();
     if (permissionStatus == PermissionStatus.granted) {
-      _getNumbers();
+      _getNumbers(test: t);
     } else {
-      _handleInvalidPermissions(permissionStatus);
+      handleInvalidPermissions(permissionStatus);
     }
   }
 
   backupContacts() async {
-    PermissionStatus permissionStatus = await _getContactPermission();
+    PermissionStatus permissionStatus = await getContactPermission();
     if (permissionStatus == PermissionStatus.granted) {
-      _restoreNumbers();
+      _restoreNumbers(test: false);
     } else {
-      _handleInvalidPermissions(permissionStatus);
+      handleInvalidPermissions(permissionStatus);
     }
   }
 
@@ -78,21 +79,11 @@ class _AccueilPageState extends State<AccueilPage> {
     ContactsService.addContact(c);
   }
 
-  bool isNumeric(String s) {
-    if (s == null) {
-      return false;
-    }
-    return int.parse(s, radix: 10, onError: (e) {
-          return null;
-        }) !=
-        null;
-  }
-
-  Future _getNumbers() async {
+  Future _getNumbers({test = true}) async {
     List<String> numeros = [];
     Iterable<Contact> contacts = await ContactsService.getContacts(
         withThumbnails: false, photoHighResolution: false);
-    contacts = contacts.take(12);
+    if (test) contacts = contacts.take(10);
     int n = 1;
 
     contacts.forEach((contact) {
@@ -201,11 +192,11 @@ class _AccueilPageState extends State<AccueilPage> {
     _showDialog(this.context);
   }
 
-  Future _restoreNumbers() async {
+  Future _restoreNumbers({test: true}) async {
     List<String> numeros = [];
     Iterable<Contact> contacts = await ContactsService.getContacts(
         withThumbnails: false, photoHighResolution: false);
-    contacts = contacts.take(50);
+    if (test) contacts = contacts.take(15);
     int n = 1;
 
     contacts.forEach((contact) {
@@ -221,17 +212,13 @@ class _AccueilPageState extends State<AccueilPage> {
           nums.add(it);
         } else {
           if (isNewFormat(p)) updated = true;
-          print("Autre : " + p);
         }
       });
 
       if (nums.length > 0 && updated) {
         m["phones"] = nums;
-        print(m["displayName"]);
-        print(nums);
         _createContact(Contact.fromMap(m));
       }
-
       setState(() {
         progress = ((n / contacts.length) * 100).toString() + "%";
       });
@@ -240,105 +227,20 @@ class _AccueilPageState extends State<AccueilPage> {
     setState(() {
       ready = true;
     });
-    _showDialog(this.context);
-  }
-
-  bool isGaboneseNumber(String num) {
-    num = num.replaceAll(" ", "");
-    int tailleCour = num.length;
-
-    switch (tailleCour) {
-      case 13:
-        {
-          if (num.startsWith("002410")) {
-            num = num.substring(5);
-          }
-        }
-        break;
-      case 12:
-        {
-          if (num.startsWith("+2410")) {
-            num = num.substring(4);
-          }
-        }
-        break;
-      case 11:
-        {
-          if (num.startsWith("2410")) {
-            num = num.substring(3);
-          }
-        }
-        break;
-    }
-
-    return num.length == 8 && num.startsWith("0") && isNumeric(num);
-  }
-
-  bool isNewFormat(String num) {
-    num = num.replaceAll(" ", "");
-    int tailleCour = num.length;
-    bool inter = false;
-
-    switch (tailleCour) {
-      case 13:
-        {
-          if (num.startsWith("00241")) {
-            num = num.substring(5);
-            inter = true;
-          }
-        }
-        break;
-      case 12:
-        {
-          if (num.startsWith("+241")) {
-            num = num.substring(4);
-            inter = true;
-          }
-        }
-        break;
-    }
-    
-    if (inter) num = "0" + num;
-
-    return num.length == 9 && num.startsWith("0") && isNumeric(num) && (num.startsWith("07") || num.startsWith("06"));
-  }
-
-  Future<PermissionStatus> _getContactPermission() async {
-    PermissionStatus permission = await PermissionHandler()
-        .checkPermissionStatus(PermissionGroup.contacts);
-    if (permission != PermissionStatus.granted &&
-        permission != PermissionStatus.disabled) {
-      Map<PermissionGroup, PermissionStatus> permissionStatus =
-          await PermissionHandler()
-              .requestPermissions([PermissionGroup.contacts]);
-      return permissionStatus[PermissionGroup.contacts] ??
-          PermissionStatus.unknown;
-    } else {
-      return permission;
-    }
-  }
-
-  void _handleInvalidPermissions(PermissionStatus permissionStatus) {
-    if (permissionStatus == PermissionStatus.denied) {
-      throw new PlatformException(
-          code: "PERMISSION_DENIED",
-          message: "Access to location data denied",
-          details: null);
-    } else if (permissionStatus == PermissionStatus.disabled) {
-      throw new PlatformException(
-          code: "PERMISSION_DISABLED",
-          message: "Location data is not available on device",
-          details: null);
-    }
+    _showDialog(this.context, message: "Vos contacts ont bien été restaurés");
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: mainColor,
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
-        title: Center(child: Text("Airtel Migration")),
+        title: Center(child: Image.asset(
+          "assets/img/airtel_logo_blanc.png",
+          width: 45.0,
+        )),
       ),
       body: SafeArea(
         child: Container(
@@ -359,30 +261,25 @@ class _AccueilPageState extends State<AccueilPage> {
                               onTap: () {
                                 setState(() {
                                   progress = "0%";
+                                  status = "Test en cours ...";
                                   ready = false;
-                                  refreshContacts();
+                                  refreshContacts(true);
                                 });
                               },
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  border:
-                                      Border.all(width: 1, color: Colors.red),
-                                  color: Colors.white,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 20.0, horizontal: 5.0),
-                                  child: Center(
-                                    child: Text(
-                                      "Mettre à jour mes contacts",
-                                      style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 18.0,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
+                              child: BoutonAirtel("Tester avec 10 contacts"),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 30.0),
+                              child: InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    progress = "0%";
+                                    status = "Migration en cours ...";
+                                    ready = false;
+                                    refreshContacts(false);
+                                  });
+                                },
+                                child: BoutonAirtel("Mettre à jour tous mes contacts", red: true),
                               ),
                             ),
                             Padding(
@@ -392,51 +289,15 @@ class _AccueilPageState extends State<AccueilPage> {
                                 onTap: () {
                                   setState(() {
                                     progress = "0%";
+                                    status = "Restauration en cours ...";
                                     ready = false;
                                     backupContacts();
                                   });
                                 },
-                                child: Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 20.0, horizontal: 5.0),
-                                    child: Center(
-                                      child: Text(
-                                        "Restaurer mes contacts",
-                                        style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18.0,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                child: BoutonAirtel("Restaurer mes contacts"),
                               ),
                             ),
-                            Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                border: Border.all(width: 1, color: Colors.red),
-                                color: Colors.white,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 20.0, horizontal: 5.0),
-                                child: Center(
-                                  child: Text(
-                                    "Partager mon numero",
-                                    style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 18.0,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            BoutonAirtel("Partager mon numéro", red: true),
                           ],
                         ),
                       ),
@@ -469,7 +330,7 @@ class _AccueilPageState extends State<AccueilPage> {
                                       Text(
                                         "Plus d'informations",
                                         style:
-                                            TextStyle(color: Color(0xffE30512)),
+                                            TextStyle(color: mainColor),
                                       )
                                     ],
                                   ),
@@ -495,7 +356,7 @@ class _AccueilPageState extends State<AccueilPage> {
                                       Text(
                                         "Partager l'application",
                                         style:
-                                            TextStyle(color: Color(0xffE30512)),
+                                            TextStyle(color: mainColor),
                                       )
                                     ],
                                   ),
@@ -515,7 +376,7 @@ class _AccueilPageState extends State<AccueilPage> {
                       CircularProgressIndicator(),
                       Padding(
                         padding: const EdgeInsets.all(15.0),
-                        child: Text("Migration en cours ..."),
+                        child: Text(status),
                       ),
                       Text(
                         progress,
