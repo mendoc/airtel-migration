@@ -37,7 +37,10 @@ void _showDialog(BuildContext context) {
         actions: <Widget>[
           // usually buttons at the bottom of the dialog
           new FlatButton(
-            child: new Text("Fermer", style: TextStyle(color: Colors.red),),
+            child: new Text(
+              "Fermer",
+              style: TextStyle(color: Colors.red),
+            ),
             onPressed: () {
               Navigator.of(context).pop();
             },
@@ -87,98 +90,96 @@ class _AccueilPageState extends State<AccueilPage> {
 
     contacts.forEach((contact) {
       Map m = contact.toMap();
-      var nums = [];
+      List<Map> nums = [];
       bool updated = false;
       Iterable<Item> phones = contact.phones;
+      numeros.clear();
       phones.forEach((phone) {
-        numeros.clear();
-        numeros.add(phone.value);
-
-        // Lister les numéro
-        String numeroCour;
-        int tailleCour;
-        String maisonCour;
-        bool inter;
-
-        for (var i = 0; i < numeros.length; i++) {
-          inter = false;
-          // Vérifier si c’est un numéro gabonais
-          numeroCour = numeros.elementAt(i);
-          // Epurer le numéro
-          numeroCour = numeroCour.replaceAll(" ", "");
-          tailleCour = numeroCour.length;
-          // vérifier la taille
-          switch (tailleCour) {
-            case 13:
-              {
-                if (numeroCour.startsWith("002410")) {
-                  numeroCour = numeroCour.substring(5);
-                  inter = true;
-                }
-              }
-              break;
-            case 12:
-              {
-                if (numeroCour.startsWith("+2410")) {
-                  numeroCour = numeroCour.substring(4);
-                  inter = true;
-                }
-              }
-              break;
-            case 11:
-              {
-                if (numeroCour.startsWith("2410")) {
-                  numeroCour = numeroCour.substring(3);
-                  inter = true;
-                }
-              }
-              break;
-          }
-
-          if (numeroCour.length == 8 &&
-              numeroCour.startsWith("0") &&
-              isNumeric(numeroCour)) {
-            maisonCour = numeroCour.substring(1, 2);
-
-            if (maisonCour == "1") {
-              numeroCour = "1" + numeroCour.substring(1);
-            } else if (maisonCour == "2" ||
-                maisonCour == "5" ||
-                maisonCour == "6") {
-              numeroCour = "6" + numeroCour.substring(1);
-            } else if (maisonCour == "4" || maisonCour == "7") {
-              numeroCour = "7" + numeroCour.substring(1);
-            } else if (maisonCour == "3") continue;
-
-            if (inter)
-              numeroCour = "+241" + numeroCour;
-            else {
-              if (maisonCour != "3") {
-                numeroCour = "0" + numeroCour;
-              }
-            }
-
-            Map it = {"label": "other", "value": numeroCour};
-            if (!contact.phones.contains(Item.fromMap(it))) {
-              if (!nums.contains(it)) nums.add(it);
-              updated = true;
-            }
-
-            print(contact.toString());
-
-            print(contact.displayName +
-                " => " +
-                numeroCour +
-                " => " +
-                maisonCour);
-          }
-        }
+        String p = phone.value.replaceAll(" ", "");
+        if (!numeros.contains(p)) numeros.add(p);
       });
+
+      print(numeros);
+
+      // Lister les numéro
+      String numeroCour;
+      int tailleCour;
+      String maisonCour;
+      bool inter;
+
+      for (var i = 0; i < numeros.length; i++) {
+        inter = false;
+        // Vérifier si c’est un numéro gabonais
+        numeroCour = numeros.elementAt(i);
+        // Epurer le numéro
+        numeroCour = numeroCour.replaceAll(" ", "");
+        tailleCour = numeroCour.length;
+        // vérifier la taille
+        switch (tailleCour) {
+          case 13:
+            {
+              if (numeroCour.startsWith("002410")) {
+                numeroCour = numeroCour.substring(5);
+                inter = true;
+              }
+            }
+            break;
+          case 12:
+            {
+              if (numeroCour.startsWith("+2410")) {
+                numeroCour = numeroCour.substring(4);
+                inter = true;
+              }
+            }
+            break;
+          case 11:
+            {
+              if (numeroCour.startsWith("2410")) {
+                numeroCour = numeroCour.substring(3);
+                inter = true;
+              }
+            }
+            break;
+        }
+
+        if (numeroCour.length == 8 &&
+            numeroCour.startsWith("0") &&
+            isNumeric(numeroCour)) {
+          maisonCour = numeroCour.substring(1, 2);
+
+          if (maisonCour == "1") {
+            numeroCour = "1" + numeroCour.substring(1);
+          } else if (maisonCour == "2" ||
+              maisonCour == "5" ||
+              maisonCour == "6") {
+            numeroCour = "6" + numeroCour.substring(1);
+          } else if (maisonCour == "4" || maisonCour == "7") {
+            numeroCour = "7" + numeroCour.substring(1);
+          } else if (maisonCour == "3") continue;
+
+          if (inter)
+            numeroCour = "+241" + numeroCour;
+          else {
+            if (maisonCour != "3") {
+              numeroCour = "0" + numeroCour;
+            }
+          }
+
+          Map it = {"label": "other", "value": numeroCour};
+          if (!numeros.contains(numeroCour)) {
+            if (!nums.contains(it)) nums.add(it);
+            updated = true;
+          }
+          print(
+              contact.displayName + " => " + numeroCour + " => " + maisonCour);
+        }
+      }
       if (updated) {
         for (Item p in contact.phones ?? []) {
-          nums.add({"label": p.label, "value": p.value});
+          if (!nums.contains({"label": p.label, "value": p.value})) nums.add({"label": p.label, "value": p.value});
         }
         m["phones"] = nums;
+        print(nums);
         _createContact(Contact.fromMap(m));
       }
       setState(() {
