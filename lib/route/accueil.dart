@@ -1,9 +1,11 @@
 import 'package:change_contacts/ui/bouton.dart';
+import 'package:change_contacts/util/config.dart';
 import 'package:change_contacts/util/master.dart';
 import 'package:contacts_service/contacts_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:change_contacts/util/config.dart';
+import 'package:share/share.dart';
 
 class Accueil extends StatelessWidget {
   @override
@@ -49,11 +51,27 @@ void _showDialog(BuildContext context, {String message}) {
   );
 }
 
+void _showAlert(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        content: Text(
+            "Veuillez patienter \nCette opération peut prendre du temps..."),
+      );
+    },
+  );
+}
+
 class _AccueilPageState extends State<AccueilPage> {
-  bool ready = true;
-  bool finished = false;
-  String progress = "0%";
-  String status = "Migration en cours ...";
+  final myController = TextEditingController();
+
+  @override
+  void dispose() {
+    myController.dispose();
+    super.dispose();
+  }
 
   refreshContacts(bool t) async {
     PermissionStatus permissionStatus = await getContactPermission();
@@ -62,6 +80,45 @@ class _AccueilPageState extends State<AccueilPage> {
     } else {
       handleInvalidPermissions(permissionStatus);
     }
+  }
+
+  void _displayDialog(BuildContext context) async {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Votre nouveau numéro de téléphone'),
+          content: TextField(
+            controller: myController,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(hintText: "ex: +24174212121"),
+          ),
+          actions: <Widget>[
+            FlatButton(
+              child: new Text(
+                'Fermer',
+                style: TextStyle(color: Color(0xFFAAAAAA)),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            FlatButton(
+              child: new Text(
+                'Partager',
+                style: TextStyle(color: mainColor),
+              ),
+              onPressed: () {
+                if (myController.text.length == 12) {
+                  shareMyNumber(myController.text);
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showConfirmation(
@@ -95,6 +152,7 @@ class _AccueilPageState extends State<AccueilPage> {
               onPressed: () {
                 action();
                 Navigator.of(context).pop();
+                _showAlert(context);
               },
             ),
           ],
@@ -107,15 +165,26 @@ class _AccueilPageState extends State<AccueilPage> {
     PermissionStatus permissionStatus = await getContactPermission();
     if (permissionStatus == PermissionStatus.granted) {
       _restoreNumbers(test: false);
+      //final isolate = await FlutterIsolate.spawn(restauration, true);
     } else {
       handleInvalidPermissions(permissionStatus);
     }
   }
 
-  Future _createContact(Contact contact) async {
+  Future _createContact(Contact contact, bool last, {restore = false}) async {
     Contact c = contact;
     await ContactsService.deleteContact(contact);
-    ContactsService.addContact(c);
+    await ContactsService.addContact(c);
+    print(contact.displayName);
+    setState(() {
+      if (last) {
+        Navigator.of(context, rootNavigator: true).pop();
+        restore
+            ? _showDialog(this.context,
+                message: "Vos contacts ont bien été restaurés")
+            : _showDialog(this.context);
+      }
+    });
   }
 
   Future _getNumbers({test = true}) async {
@@ -123,7 +192,6 @@ class _AccueilPageState extends State<AccueilPage> {
     Iterable<Contact> contacts = await ContactsService.getContacts(
         withThumbnails: false, photoHighResolution: false);
     if (test) contacts = contacts.take(10);
-    int n = 1;
 
     contacts.forEach((contact) {
       Map m = contact.toMap();
@@ -135,8 +203,6 @@ class _AccueilPageState extends State<AccueilPage> {
         String p = phone.value.replaceAll(" ", "");
         if (!numeros.contains(p)) numeros.add(p);
       });
-
-      print(numeros);
 
       // Lister les numéro
       String numeroCour;
@@ -207,8 +273,8 @@ class _AccueilPageState extends State<AccueilPage> {
             if (!nums.contains(it)) nums.add(it);
             updated = true;
           }
-          print(
-              contact.displayName + " => " + numeroCour + " => " + maisonCour);
+          /*print(
+              contact.displayName + " => " + numeroCour + " => " + maisonCour);*/
         }
       }
       if (updated) {
@@ -217,18 +283,25 @@ class _AccueilPageState extends State<AccueilPage> {
             nums.add({"label": p.label, "value": p.value});
         }
         m["phones"] = nums;
-        print(nums);
-        _createContact(Contact.fromMap(m));
+
+        _createContact(Contact.fromMap(m), contacts.last == contact);
+      } else {
+        print(contact.displayName);
+        setState(() {
+          if (contacts.last == contact) {
+            Navigator.of(context, rootNavigator: true).pop();
+            _showDialog(this.context);
+          }
+        });
       }
-      setState(() {
-        progress = ((n / contacts.length) * 100).toString() + "%";
-      });
-      n++;
     });
-    setState(() {
-      ready = true;
-    });
-    _showDialog(this.context);
+  }
+
+  void shareMyNumber(String number) {
+    String text =
+        "Voici mon nouveau numéro de téléphone, prière de l'ajouter dans votre répertoire s'il vous plaît. Merci\n";
+    text += number;
+    Share.share(text);
   }
 
   Future _restoreNumbers({test: true}) async {
@@ -236,7 +309,6 @@ class _AccueilPageState extends State<AccueilPage> {
     Iterable<Contact> contacts = await ContactsService.getContacts(
         withThumbnails: false, photoHighResolution: false);
     if (test) contacts = contacts.take(15);
-    int n = 1;
 
     contacts.forEach((contact) {
       Map m = contact.toMap();
@@ -256,17 +328,18 @@ class _AccueilPageState extends State<AccueilPage> {
 
       if (nums.length > 0 && updated) {
         m["phones"] = nums;
-        _createContact(Contact.fromMap(m));
+        _createContact(Contact.fromMap(m), contacts.last == contact,
+            restore: true);
+      } else {
+        setState(() {
+          if (contacts.last == contact) {
+            Navigator.of(context, rootNavigator: true).pop();
+            _showDialog(this.context,
+                message: "Vos contacts ont bien été restaurés");
+          }
+        });
       }
-      setState(() {
-        progress = ((n / contacts.length) * 100).toString() + "%";
-      });
-      n++;
     });
-    setState(() {
-      ready = true;
-    });
-    _showDialog(this.context, message: "Vos contacts ont bien été restaurés");
   }
 
   @override
@@ -285,102 +358,105 @@ class _AccueilPageState extends State<AccueilPage> {
       body: SafeArea(
         child: Container(
           height: MediaQuery.of(context).size.height,
-          child: ready
-              ? Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    Container(
-                      height: MediaQuery.of(context).size.height * 0.65,
-                      child: Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            InkWell(
+          child: Align(
+            alignment: Alignment(0, 1),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Container(
+                    height: MediaQuery.of(context).size.height * 0.65,
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          InkWell(
+                            onTap: () {
+                              _showConfirmation(
+                                this.context,
+                                () {
+                                  setState(() {
+                                    refreshContacts(true);
+                                  });
+                                },
+                                textAction: "Faire le test",
+                                titre: "Test de migration",
+                                message:
+                                    "Voulez-vous vraiment faire un test de mise à jour de vos contacts ?",
+                              );
+                            },
+                            child: BoutonAirtel("Tester avec 10 contacts"),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 30.0),
+                            child: InkWell(
                               onTap: () {
                                 _showConfirmation(
                                   this.context,
                                   () {
                                     setState(() {
-                                      progress = "0%";
-                                      status = "Test en cours ...";
-                                      ready = false;
-                                      refreshContacts(true);
+                                      refreshContacts(false);
                                     });
                                   },
-                                  textAction: "Faire le test",
-                                  titre: "Test de migration",
+                                  textAction: "Mettre à jour",
+                                  titre: "Mise à jour",
                                   message:
-                                      "Voulez-vous vraiment faire un test de mise à jour de vos contacts ?",
+                                      "Voulez-vous vraiment faire la mise à jour de tous vos contacts ?",
                                 );
                               },
-                              child: BoutonAirtel("Tester avec 10 contacts"),
+                              child: BoutonAirtel("Mettre à jour tous mes contacts",
+                                  red: true),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 30.0),
-                              child: InkWell(
-                                onTap: () {
-                                  _showConfirmation(
-                                    this.context,
-                                    () {
-                                      setState(() {
-                                        progress = "0%";
-                                        status = "Migration en cours ...";
-                                        ready = false;
-                                        refreshContacts(false);
-                                      });
-                                    },
-                                    textAction: "Mettre à jour",
-                                    titre: "Mise à jour",
-                                    message:
-                                        "Voulez-vous vraiment faire la mise à jour de tous vos contacts ?",
-                                  );
-                                },
-                                child: BoutonAirtel(
-                                    "Mettre à jour tous mes contacts",
-                                    red: true),
-                              ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 30.0),
+                            child: InkWell(
+                              onTap: () {
+                                _showConfirmation(
+                                  this.context,
+                                  () {
+                                    setState(() {
+                                      backupContacts();
+                                    });
+                                  },
+                                  titre: "Restauration",
+                                  textAction: "Restaurer",
+                                  message:
+                                      "Voulez-vous vraiment restaurer vos contacts ?",
+                                );
+                              },
+                              child: BoutonAirtel("Restaurer mes contacts"),
                             ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 30.0),
-                              child: InkWell(
-                                onTap: () {
-                                  _showConfirmation(
-                                    this.context,
-                                    () {
-                                      setState(() {
-                                        progress = "0%";
-                                        status = "Restauration en cours ...";
-                                        ready = false;
-                                        backupContacts();
-                                      });
-                                    },
-                                    titre: "Restauration",
-                                    textAction: "Restaurer",
-                                    message:
-                                        "Voulez-vous vraiment restaurer vos contacts ?",
-                                  );
-                                },
-                                child: BoutonAirtel("Restaurer mes contacts"),
-                              ),
-                            ),
-                            BoutonAirtel("Partager mon numéro", red: true),
-                          ],
-                        ),
+                          ),
+                          InkWell(
+                              onTap: () {
+                                _displayDialog(context);
+                              },
+                              child:
+                                  BoutonAirtel("Partager mon numéro", red: true)),
+                        ],
                       ),
                     ),
-                    Container(
-                      height: MediaQuery.of(context).size.height * 0.15,
-                      child: Container(
-                        decoration: BoxDecoration(
-                            border:
-                                Border.all(width: 1, color: Color(0xffcccccc))),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Center(
+                  ),
+                  Container(
+                    height: MediaQuery.of(context).size.height * 0.12,
+                    child: Container(
+                      decoration: BoxDecoration(
+                          border: Border.all(width: 1, color: Color(0xffcccccc))),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Center(
+                            child: InkWell(
+                              onTap: () {
+                                AlertDialog diag = AlertDialog(
+                                  content: Text(
+                                      "Veuillez patienter \nCette opération peut prendre du temps..."),
+                                );
+                                diag.build(context);
+                              },
                               child: Container(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -405,7 +481,13 @@ class _AccueilPageState extends State<AccueilPage> {
                                 ),
                               ),
                             ),
-                            Center(
+                          ),
+                          Center(
+                            child: InkWell(
+                              onTap: () {
+                                Share.share(
+                                    'Téléchargez Airtel Migration sur https://airtel-migration.netlify.com');
+                              },
                               child: Container(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -430,28 +512,15 @@ class _AccueilPageState extends State<AccueilPage> {
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    )
-                  ],
-                )
-              : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      CircularProgressIndicator(),
-                      Padding(
-                        padding: const EdgeInsets.all(15.0),
-                        child: Text(status),
-                      ),
-                      Text(
-                        progress,
-                        style: TextStyle(fontSize: 18.0),
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
