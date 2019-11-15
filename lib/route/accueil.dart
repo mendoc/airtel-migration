@@ -64,6 +64,45 @@ class _AccueilPageState extends State<AccueilPage> {
     }
   }
 
+  void _showConfirmation(
+    BuildContext context,
+    action(), {
+    String message,
+    String titre = "",
+    String textAction = "",
+  }) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: new Text(titre),
+          content: new Text(message ?? ""),
+          actions: <Widget>[
+            new FlatButton(
+              child: new Text(
+                "Fermer",
+                style: TextStyle(color: Color(0xAF000000)),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            new FlatButton(
+              child: new Text(
+                textAction ?? "",
+                style: TextStyle(color: mainColor),
+              ),
+              onPressed: () {
+                action();
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   backupContacts() async {
     PermissionStatus permissionStatus = await getContactPermission();
     if (permissionStatus == PermissionStatus.granted) {
@@ -237,7 +276,8 @@ class _AccueilPageState extends State<AccueilPage> {
         backgroundColor: mainColor,
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
-        title: Center(child: Image.asset(
+        title: Center(
+            child: Image.asset(
           "assets/img/airtel_logo_blanc.png",
           width: 45.0,
         )),
@@ -259,12 +299,21 @@ class _AccueilPageState extends State<AccueilPage> {
                           children: <Widget>[
                             InkWell(
                               onTap: () {
-                                setState(() {
-                                  progress = "0%";
-                                  status = "Test en cours ...";
-                                  ready = false;
-                                  refreshContacts(true);
-                                });
+                                _showConfirmation(
+                                  this.context,
+                                  () {
+                                    setState(() {
+                                      progress = "0%";
+                                      status = "Test en cours ...";
+                                      ready = false;
+                                      refreshContacts(true);
+                                    });
+                                  },
+                                  textAction: "Faire le test",
+                                  titre: "Test de migration",
+                                  message:
+                                      "Voulez-vous vraiment faire un test de mise à jour de vos contacts ?",
+                                );
                               },
                               child: BoutonAirtel("Tester avec 10 contacts"),
                             ),
@@ -272,14 +321,25 @@ class _AccueilPageState extends State<AccueilPage> {
                               padding: const EdgeInsets.only(top: 30.0),
                               child: InkWell(
                                 onTap: () {
-                                  setState(() {
-                                    progress = "0%";
-                                    status = "Migration en cours ...";
-                                    ready = false;
-                                    refreshContacts(false);
-                                  });
+                                  _showConfirmation(
+                                    this.context,
+                                    () {
+                                      setState(() {
+                                        progress = "0%";
+                                        status = "Migration en cours ...";
+                                        ready = false;
+                                        refreshContacts(false);
+                                      });
+                                    },
+                                    textAction: "Mettre à jour",
+                                    titre: "Mise à jour",
+                                    message:
+                                        "Voulez-vous vraiment faire la mise à jour de tous vos contacts ?",
+                                  );
                                 },
-                                child: BoutonAirtel("Mettre à jour tous mes contacts", red: true),
+                                child: BoutonAirtel(
+                                    "Mettre à jour tous mes contacts",
+                                    red: true),
                               ),
                             ),
                             Padding(
@@ -287,12 +347,21 @@ class _AccueilPageState extends State<AccueilPage> {
                                   const EdgeInsets.symmetric(vertical: 30.0),
                               child: InkWell(
                                 onTap: () {
-                                  setState(() {
-                                    progress = "0%";
-                                    status = "Restauration en cours ...";
-                                    ready = false;
-                                    backupContacts();
-                                  });
+                                  _showConfirmation(
+                                    this.context,
+                                    () {
+                                      setState(() {
+                                        progress = "0%";
+                                        status = "Restauration en cours ...";
+                                        ready = false;
+                                        backupContacts();
+                                      });
+                                    },
+                                    titre: "Restauration",
+                                    textAction: "Restaurer",
+                                    message:
+                                        "Voulez-vous vraiment restaurer vos contacts ?",
+                                  );
                                 },
                                 child: BoutonAirtel("Restaurer mes contacts"),
                               ),
@@ -329,8 +398,7 @@ class _AccueilPageState extends State<AccueilPage> {
                                       ),
                                       Text(
                                         "Plus d'informations",
-                                        style:
-                                            TextStyle(color: mainColor),
+                                        style: TextStyle(color: mainColor),
                                       )
                                     ],
                                   ),
@@ -355,8 +423,7 @@ class _AccueilPageState extends State<AccueilPage> {
                                       ),
                                       Text(
                                         "Partager l'application",
-                                        style:
-                                            TextStyle(color: mainColor),
+                                        style: TextStyle(color: mainColor),
                                       )
                                     ],
                                   ),
